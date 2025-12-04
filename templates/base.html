@@ -4,73 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>성균관대 모여락</title>
+    
+    <link rel="shortcut icon" href="{{ url_for('static', filename='images/logo.jpg') }}">
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    
     <style>
         body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; }
         .navbar-brand { font-weight: 800; }
+        
+        /* [변경 2] 로고 이미지가 너무 크지 않게 높이 제한 */
+        .navbar-logo {
+            height: 35px; /* 메뉴바 높이에 맞게 조절 */
+            width: auto;  /* 비율 유지 */
+            margin-right: 5px;
+        }
     </style>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
+    
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="/">🎸 모여락</a>
+            
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Logo" class="navbar-logo">
+                모여락
+            </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">
-                
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/notice">📢 공지사항</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/schedule">🗓 모여락 일정</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/myschedule">🕒 내 시간표</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/team">👥 팀 관리</a>
-                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/notice">📢 공지사항</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/schedule">🗓 모여락 일정</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/myschedule">🕒 내 시간표</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/team">👥 팀 관리</a></li>
                 </ul>
-
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}
                         <li class="nav-item">
                             <span class="nav-link text-warning">
-                                {% if current_user.is_admin %}
-                                    👑 관리자님
-                                {% else %}
-                                    {{ current_user.name }}님 ({{ current_user.session }})
-                                {% endif %}
+                                {% if current_user.is_admin %}👑 관리자님{% else %}{{ current_user.name }}님 ({{ current_user.session }}){% endif %}
                             </span>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link btn btn-outline-light btn-sm px-3 ms-2 text-white" href="/logout">로그아웃</a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link btn btn-outline-light btn-sm px-3 ms-2 text-white" href="/logout">로그아웃</a></li>
                     {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/login">로그인</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/register">회원가입</a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link" href="/login">로그인</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/register">회원가입</a></li>
                     {% endif %}
                 </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4 mb-5">
+    <div class="container mt-4 mb-5 flex-grow-1">
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                    {% for message in messages %}
-                        {{ message }}<br>
-                    {% endfor %}
+                    {% for message in messages %}{{ message }}<br>{% endfor %}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             {% endif %}
@@ -78,6 +72,18 @@
         
         {% block content %}{% endblock %}
     </div>
+
+    <footer class="py-4 bg-light border-top mt-auto">
+        <div class="container text-center">
+            <p class="mb-1 text-muted fw-bold">🎸 성균관대학교 중앙 밴드동아리 모여락</p>
+            <p class="small text-muted mb-0">
+                Developed by <span class="text-primary fw-bold">28기 Keyboard 조도형</span>
+            </p>
+            <p class="small text-muted mt-2 mb-0" style="font-size: 0.75rem;">
+                Copyright © 2025 Moyeo-Rock. All rights reserved.
+            </p>
+        </div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
