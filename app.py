@@ -334,6 +334,12 @@ def session_page(type):
 
     return render_template('instruments.html', type=type.upper(), leader=leader_info, session_type=session_type, events_data=events_data, inst_status=instruments_status)
 
+@app.route('/sys_init')
+def sys_init():
+    db.create_all()
+    init_instruments()
+    return "🎉 데이터베이스 초기화 완료! 이제 메인으로 돌아가세요."
+
 if __name__ == '__main__':
     with app.app_context(): db.create_all(); init_instruments()
     app.run(debug=True, port=5001)
