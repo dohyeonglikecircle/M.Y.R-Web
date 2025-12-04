@@ -8,16 +8,15 @@ import json
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'moyeo-rock-secret-key'
 
-database_url = os.environ.get('DATABASE_URL') # Render 서버에 설정된 DB 주소를 가져옴
-
+# --- [데이터베이스 설정 (Render / Local 자동 구분)] ---
+database_url = os.environ.get('DATABASE_URL')
 if database_url:
-    # Render 서버 환경일 때 (PostgreSQL 사용)
-    # SQLAlchemy는 postgres:// 대신 postgresql:// 로 시작해야 인식함
+    # Render 서버 환경 (PostgreSQL)
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    # 내 컴퓨터(로컬) 환경일 때 (기존처럼 SQLite 사용)
+    # 내 컴퓨터 환경 (SQLite)
     basedir = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 
@@ -26,13 +25,12 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- [연관 테이블] ---
+# --- [데이터베이스 모델] ---
 team_members = db.Table('team_members',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
     db.Column('team_id', db.Integer, db.ForeignKey('team.id'))
 )
 
-# --- [데이터베이스 모델] ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
@@ -41,7 +39,7 @@ class User(UserMixin, db.Model):
     cohort = db.Column(db.Float, nullable=True)
     session = db.Column(db.String(50), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    schedule_json = db.Column(db.Text, nullable=True)
+    schedule_json = db.Column(db.Text, nullable=True) # 날짜별 데이터 저장
     teams = db.relationship('Team', secondary=team_members, backref='members')
 
 class Team(db.Model):
@@ -53,7 +51,7 @@ class Team(db.Model):
 class ConfirmedSchedule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
-    day_of_week = db.Column(db.String(10), nullable=False)
+    target_date = db.Column(db.String(20), nullable=False) # YYYY-MM-DD
     time_index = db.Column(db.Integer, nullable=False)
 
 class Notice(db.Model):
@@ -86,31 +84,50 @@ class InstrumentReservation(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# --- [헬퍼 함수] ---
 def init_instruments():
-    if Instrument.query.count() == 0:
-        base_instruments = [
-            {'code': 'guitar1', 'name': 'Squire - FSR Affinity Stratocaster', 'is_available': True},
-            {'code': 'guitar2', 'name': 'Ibanez - RG350DXZ', 'is_available': True},
-            {'code': 'guitar3', 'name': 'Beyond - 모델 모르겠어요....ㅠ', 'is_available': True},
-            {'code': 'geffect', 'name': 'Mytone - DX1 (Distortion)', 'is_available': True},
-            {'code': 'bass1', 'name': 'Twoman - TJB-100', 'is_available': True},
-            {'code': 'bass2', 'name': 'Swing - Jazz King Plus Red Burst', 'is_available': True},
-            {'code': 'bass3', 'name': 'Swing - Jazz King WH(M)', 'is_available': True},
-            {'code': 'beffect', 'name': 'Valeton - Dapper Bass', 'is_available': True},
-            {'code': 'keyboard', 'name': 'Main Keyboard (Yamaha/Kurzweil)', 'is_available': True},
-            {'code': 'drum', 'name': 'Main Drum Set', 'is_available': True}
-        ]
-        for item in base_instruments:
-            inst = Instrument(code=item['code'], name=item['name'], is_available=item['is_available'])
-            db.session.add(inst)
-        db.session.commit()
+    try:
+        if Instrument.query.count() == 0:
+            base = [
+                {'code': 'guitar1', 'name': 'Squire - FSR Affinity Stratocaster', 'is_available': True},
+                {'code': 'guitar2', 'name': 'Ibanez - RG350DXZ', 'is_available': True},
+                {'code': 'guitar3', 'name': 'Beyond - 모델 모르겠어요....ㅠ', 'is_available': True},
+                {'code': 'geffect', 'name': 'Mytone - DX1 (Distortion)', 'is_available': True},
+                {'code': 'bass1', 'name': 'Twoman - TJB-100', 'is_available': True},
+                {'code': 'bass2', 'name': 'Swing - Jazz King Plus Red Burst', 'is_available': True},
+                {'code': 'bass3', 'name': 'Swing - Jazz King WH(M)', 'is_available': True},
+                {'code': 'beffect', 'name': 'Valeton - Dapper Bass', 'is_available': True},
+                {'code': 'keyboard', 'name': 'Main Keyboard (Yamaha/Kurzweil)', 'is_available': True},
+                {'code': 'drum', 'name': 'Main Drum Set', 'is_available': True}
+            ]
+            for item in base:
+                db.session.add(Instrument(code=item['code'], name=item['name'], is_available=item['is_available']))
+            db.session.commit()
+            print("🎸 초기 악기 데이터 생성 완료!")
+    except: pass
+
+def get_calendar_weeks():
+    today = datetime.now().date()
+    start_of_week = today - timedelta(days=today.weekday())
+    weeks = []
+    for w in range(5): # 5주치 생성
+        week_days = []
+        for d in range(7):
+            current_day = start_of_week + timedelta(weeks=w, days=d)
+            date_str = current_day.strftime('%Y-%m-%d')
+            weekday_kor = ['월', '화', '수', '목', '금', '토', '일'][current_day.weekday()]
+            display_str = f"{current_day.month}/{current_day.day} ({weekday_kor})"
+            week_days.append({'date': date_str, 'display': display_str, 'is_past': current_day < today})
+        weeks.append(week_days)
+    return weeks
 
 # --- [라우팅] ---
 
 @app.route('/')
 def home():
-    recent_notices = Notice.query.order_by(Notice.date_posted.desc()).limit(3).all()
-    return render_template('index.html', notices=recent_notices)
+    try: notices = Notice.query.order_by(Notice.date_posted.desc()).limit(3).all()
+    except: notices = []
+    return render_template('index.html', notices=notices)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -118,12 +135,11 @@ def register():
     if request.method == 'POST':
         username = request.form.get('username'); password = request.form.get('password'); name = request.form.get('name')
         if User.query.filter_by(username=username).first(): flash('이미 존재하는 아이디입니다.'); return redirect(url_for('register'))
-        if username == 'admin': is_admin = True; final_cohort = None; final_session = 'admin'
+        if username == 'admin': is_admin=True; final_cohort=None; final_session='admin'
         else:
-            if not request.form.get('cohort') or not request.form.get('session'): flash('기수와 세션을 반드시 선택해주세요.'); return redirect(url_for('register'))
-            is_admin = False; final_cohort = float(request.form.get('cohort')); final_session = request.form.get('session')
-        new_user = User(username=username, password=password, name=name, cohort=final_cohort, session=final_session, is_admin=is_admin)
-        db.session.add(new_user); db.session.commit()
+            if not request.form.get('cohort'): flash('기수/세션 필수'); return redirect(url_for('register'))
+            is_admin=False; final_cohort=float(request.form.get('cohort')); final_session=request.form.get('session')
+        db.session.add(User(username=username, password=password, name=name, cohort=final_cohort, session=final_session, is_admin=is_admin)); db.session.commit()
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -133,7 +149,7 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.password == request.form.get('password'): login_user(user); return redirect(url_for('home'))
-        else: flash('아이디 또는 비밀번호 확인')
+        flash('아이디 또는 비밀번호 확인')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -155,129 +171,103 @@ def new_notice():
 @app.route('/schedule', methods=['GET', 'POST'])
 def schedule():
     if request.method == 'POST':
-        if not current_user.is_admin: flash("권한이 없습니다."); return redirect(url_for('schedule'))
+        if not current_user.is_admin: return redirect(url_for('schedule'))
         try:
-            start_obj = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
-            end_obj = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date() if request.form.get('end_date') else start_obj
-            db.session.add(Schedule(title=request.form.get('title'), start_date=start_obj, end_date=end_obj))
-            db.session.commit(); flash("일정이 추가되었습니다.")
-        except ValueError: flash("날짜 형식이 올바르지 않습니다.")
+            s = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+            e = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date() if request.form.get('end_date') else s
+            db.session.add(Schedule(title=request.form.get('title'), start_date=s, end_date=e)); db.session.commit()
+        except: flash("오류")
         return redirect(url_for('schedule'))
-    events_data = [{'title': e.title, 'start': e.start_date.strftime('%Y-%m-%d'), 'end': (e.end_date + timedelta(days=1)).strftime('%Y-%m-%d'), 'color': '#dc3545' if '공연' in e.title else '#0d6efd'} for e in Schedule.query.all()]
-    return render_template('schedule.html', events_data=events_data)
+    ev = [{'title':e.title, 'start':e.start_date.strftime('%Y-%m-%d'), 'end':(e.end_date+timedelta(days=1)).strftime('%Y-%m-%d'), 'color':'#dc3545' if '공연' in e.title else '#0d6efd'} for e in Schedule.query.all()]
+    return render_template('schedule.html', events_data=ev)
 
 @app.route('/myschedule', methods=['GET', 'POST'])
 @login_required
 def myschedule():
     if request.method == 'POST':
-        current_user.schedule_json = request.form.get('schedule_data')
+        # 날짜별 데이터 병합 저장
+        new_data = json.loads(request.form.get('schedule_data'))
+        current_data = json.loads(current_user.schedule_json) if current_user.schedule_json else {}
+        current_data.update(new_data)
+        current_user.schedule_json = json.dumps(current_data)
         db.session.commit()
         flash("시간표가 저장되었습니다.")
         return redirect(url_for('myschedule'))
+    
+    weeks = get_calendar_weeks()
     my_schedule = json.loads(current_user.schedule_json) if current_user.schedule_json else {}
-    return render_template('myschedule.html', my_schedule=my_schedule)
+    return render_template('myschedule.html', weeks=weeks, my_schedule=my_schedule)
 
 @app.route('/team', methods=['GET', 'POST'])
 @login_required
 def team_dashboard():
     if request.method == 'POST':
-        team_name = request.form.get('team_name')
-        if team_name:
-            new_team = Team(name=team_name, leader_id=current_user.id)
-            new_team.members.append(current_user)
-            db.session.add(new_team)
-            db.session.commit()
-            flash(f"'{team_name}' 팀이 생성되었습니다.")
+        tn = request.form.get('team_name')
+        if tn:
+            t = Team(name=tn, leader_id=current_user.id); t.members.append(current_user); db.session.add(t); db.session.commit()
+            flash('생성 완료')
         return redirect(url_for('team_dashboard'))
     return render_template('team.html', teams=current_user.teams)
 
-# ==========================================
-# [API] 멤버 검색 (AJAX용)
-# ==========================================
 @app.route('/api/search_user', methods=['GET'])
 @login_required
 def api_search_user():
-    query = request.args.get('query', '').strip()
-    if not query: return jsonify([])
-    
-    users = User.query.filter(User.name.contains(query)).all()
-    results = []
-    session_initials = {'Vocal': 'V', 'Guitar': 'G', 'Bass': 'B', 'Keyboard': 'K', 'Drum': 'D', 'admin': 'A'}
-    
-    for u in users:
-        initial = session_initials.get(u.session, '?')
-        cohort_str = str(int(u.cohort)) if u.cohort and u.cohort.is_integer() else str(u.cohort)
-        display_str = f"관리자 ({u.name})" if u.is_admin else f"{cohort_str}{initial} {u.name}"
-        results.append({'id': u.id, 'username': u.username, 'display': display_str})
-        
-    return jsonify(results)
+    q = request.args.get('query','').strip(); res = []
+    if not q: return jsonify([])
+    for u in User.query.filter(User.name.contains(q)).all():
+        cohort = str(int(u.cohort)) if u.cohort and u.cohort.is_integer() else str(u.cohort)
+        d = f"관리자 ({u.name})" if u.is_admin else f"{cohort}{u.session[0]} {u.name}"
+        res.append({'id':u.id, 'username':u.username, 'display':d})
+    return jsonify(res)
 
 @app.route('/team/<int:team_id>', methods=['GET', 'POST'])
 @login_required
 def team_detail(team_id):
     team = Team.query.get_or_404(team_id)
-    
     if request.method == 'POST':
         action = request.form.get('action')
-        
-        # [변경] ID로 멤버 초대 (중복 방지, 정확한 선택)
         if action == 'add_member_by_id':
-            target_id = request.form.get('target_user_id')
-            user = User.query.get(target_id)
-            if user:
-                if user not in team.members:
-                    team.members.append(user)
-                    db.session.commit()
-                    flash(f"[{user.name}] 님을 팀에 초대했습니다.")
-                else: flash("이미 팀원입니다.")
+            u = User.query.get(request.form.get('target_user_id'))
+            if u and u not in team.members: team.members.append(u); db.session.commit(); flash("초대 완료")
             return redirect(url_for('team_detail', team_id=team_id))
-
-        # [변경] 드래그한 시간 일괄 확정
         elif action == 'batch_confirm':
-            slots_json = request.form.get('selected_slots')
-            slots = json.loads(slots_json)
+            slots = json.loads(request.form.get('selected_slots')) # ["2024-12-05_10", ...]
             count = 0
             for slot in slots:
-                day, idx_str = slot.split('_')
-                idx = int(idx_str)
-                exists = ConfirmedSchedule.query.filter_by(team_id=team.id, day_of_week=day, time_index=idx).first()
-                if not exists:
-                    db.session.add(ConfirmedSchedule(team_id=team.id, day_of_week=day, time_index=idx))
-                    count += 1
-            if count > 0:
-                db.session.commit()
-                flash(f"{count}개의 시간대가 확정되었습니다!")
+                date_str, idx = slot.split('_'); idx = int(idx)
+                if not ConfirmedSchedule.query.filter_by(team_id=team.id, target_date=date_str, time_index=idx).first():
+                    db.session.add(ConfirmedSchedule(team_id=team.id, target_date=date_str, time_index=idx)); count += 1
+            if count > 0: db.session.commit(); flash(f"{count}개 확정!")
             return redirect(url_for('team_detail', team_id=team_id))
-
         elif action == 'delete_confirm':
-            day = request.form.get('day'); idx = int(request.form.get('time_index'))
-            target = ConfirmedSchedule.query.filter_by(team_id=team.id, day_of_week=day, time_index=idx).first()
-            if target: db.session.delete(target); db.session.commit(); flash("확정이 취소되었습니다.")
+            t = ConfirmedSchedule.query.filter_by(team_id=team.id, target_date=request.form.get('date'), time_index=int(request.form.get('time_index'))).first()
+            if t: db.session.delete(t); db.session.commit()
             return redirect(url_for('team_detail', team_id=team_id))
-
         elif action == 'delete_team':
-            if team.leader_id == current_user.id:
-                db.session.delete(team); db.session.commit(); return redirect(url_for('team_dashboard'))
+            if team.leader_id==current_user.id: db.session.delete(team); db.session.commit(); return redirect(url_for('team_dashboard'))
 
-    days_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    overlap_data = {day: [0]*30 for day in days_labels}
-    confirmed_slots = [f"{conf.day_of_week}_{conf.time_index}" for conf in team.confirmed_schedules]
+    # 날짜별 데이터 집계
+    weeks = get_calendar_weeks()
+    overlap_data = {}
+    all_dates = [d['date'] for w in weeks for d in w]
+    for d in all_dates: overlap_data[d] = [0]*30
+
+    confirmed_slots = [f"{c.target_date}_{c.time_index}" for c in team.confirmed_schedules]
 
     for member in team.members:
         if not member.schedule_json: continue
-        member_schedule = json.loads(member.schedule_json)
+        sched = json.loads(member.schedule_json)
         busy_slots = []
         for t in member.teams:
             if t.id == team.id: continue
-            for cs in t.confirmed_schedules: busy_slots.append(f"{cs.day_of_week}_{cs.time_index}")
+            for cs in t.confirmed_schedules: busy_slots.append(f"{cs.target_date}_{cs.time_index}")
         
-        for day in days_labels:
-            if day in member_schedule:
+        for date_str in all_dates:
+            if date_str in sched:
                 for i in range(30):
-                    slot_key = f"{day}_{i}"
-                    if member_schedule[day][i] == 1 and slot_key not in busy_slots: overlap_data[day][i] += 1
+                    if sched[date_str][i] == 1 and f"{date_str}_{i}" not in busy_slots: overlap_data[date_str][i] += 1
 
-    return render_template('team_detail.html', team=team, overlap_data=overlap_data, confirmed_slots=confirmed_slots, total_members=len(team.members))
+    return render_template('team_detail.html', team=team, weeks=weeks, overlap_data=overlap_data, confirmed_slots=confirmed_slots, total_members=len(team.members))
 
 @app.route('/session/<type>', methods=['GET', 'POST'])
 @login_required
@@ -289,24 +279,23 @@ def session_page(type):
             if not current_user.is_admin: flash("관리자만 변경할 수 있습니다."); return redirect(url_for('session_page', type=type))
             target_code = request.form.get('target_code')
             inst = Instrument.query.filter_by(code=target_code).first()
-            if inst: inst.is_available = not inst.is_available; db.session.commit(); flash(f"상태가 변경되었습니다.")
+            if inst: inst.is_available = not inst.is_available; db.session.commit(); flash("상태 변경됨")
             return redirect(url_for('session_page', type=type))
         elif action == 'reserve':
             item = request.form.get('item_type'); start_str = request.form.get('start_date'); end_str = request.form.get('end_date')
             target_inst = Instrument.query.filter_by(code=item).first()
-            if target_inst and not target_inst.is_available: flash("현재 사용 불가 상태입니다."); return redirect(url_for('session_page', type=type))
+            if target_inst and not target_inst.is_available: flash("현재 사용 불가"); return redirect(url_for('session_page', type=type))
             try:
                 start_obj = datetime.strptime(start_str, '%Y-%m-%dT%H:%M'); end_obj = datetime.strptime(end_str, '%Y-%m-%dT%H:%M')
-                if start_obj >= end_obj: flash("종료 시간이 더 빨라야 합니다."); return redirect(url_for('session_page', type=type))
-                if (end_obj - start_obj).total_seconds() / 3600 > 72: flash("최대 72시간 제한"); return redirect(url_for('session_page', type=type))
-                overlap = InstrumentReservation.query.filter(InstrumentReservation.item_type == item, InstrumentReservation.start_date < end_obj, InstrumentReservation.end_date > start_obj).first()
-                if overlap: flash("이미 예약이 있습니다."); return redirect(url_for('session_page', type=type))
-                db.session.add(InstrumentReservation(user_id=current_user.id, item_type=item, start_date=start_obj, end_date=end_obj))
-                db.session.commit(); flash("예약 완료!")
-            except ValueError: flash("날짜 오류")
+                if start_obj >= end_obj: flash("시간 오류"); return redirect(url_for('session_page', type=type))
+                if (end_obj - start_obj).total_seconds() / 3600 > 72: flash("최대 72시간"); return redirect(url_for('session_page', type=type))
+                if InstrumentReservation.query.filter(InstrumentReservation.item_type == item, InstrumentReservation.start_date < end_obj, InstrumentReservation.end_date > start_obj).first(): flash("이미 예약됨"); return redirect(url_for('session_page', type=type))
+                db.session.add(InstrumentReservation(user_id=current_user.id, item_type=item, start_date=start_obj, end_date=end_obj)); db.session.commit(); flash("예약 완료")
+            except: flash("오류 발생")
             return redirect(url_for('session_page', type=type))
 
     leader_info = None
+    # [파트장 정보 업데이트]
     if session_type == 'vocal': leader_info = {'name': '김서연', 'intro': '보컬 파트장', 'insta': 'https://www.instagram.com/florescence_328'}
     elif session_type == 'guitar': leader_info = {'name': '배은성', 'intro': '기타 파트장', 'insta': 'https://www.instagram.com/shawn_t.s_/'}
     elif session_type == 'bass': leader_info = {'name': '김하은', 'intro': '베이스 파트장', 'insta': 'https://www.instagram.com/ovwewo/'}
@@ -329,17 +318,18 @@ def session_page(type):
         for res in reservations:
             u = res.user; initial = session_initials.get(u.session, '?')
             cohort_str = str(int(u.cohort)) if u.cohort and u.cohort.is_integer() else str(u.cohort)
-            display_name = "관리자" if u.is_admin else f"{cohort_str}{initial} {u.name}"
-            events_data.append({'title': display_name, 'start': res.start_date.isoformat(), 'end': res.end_date.isoformat(), 'color': color_map.get(res.item_type, '#6c757d')})
+            display = "관리자" if u.is_admin else f"{cohort_str}{initial} {u.name}"
+            events_data.append({'title': display, 'start': res.start_date.isoformat(), 'end': res.end_date.isoformat(), 'color': color_map.get(res.item_type, '#6c757d')})
 
     return render_template('instruments.html', type=type.upper(), leader=leader_info, session_type=session_type, events_data=events_data, inst_status=instruments_status)
 
+# [비상용 초기화 주소]
 @app.route('/sys_init')
 def sys_init():
     db.create_all()
     init_instruments()
-    return "🎉 데이터베이스 초기화 완료! 이제 메인으로 돌아가세요."
+    return "🎉 데이터베이스 초기화 및 악기 등록 완료! 메인으로 돌아가세요."
 
 if __name__ == '__main__':
-    with app.app_context(): db.create_all(); init_instruments()
+    with app.app_context(): db.create_all()
     app.run(debug=True, port=5001)
