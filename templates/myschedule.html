@@ -2,30 +2,69 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-10">
+    <div class="col-md-11">
         <div class="card shadow-sm border-primary">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">🕒 내 가능 시간 입력 (Every Week)</h4>
+                <h4 class="mb-0">🕒 내 가능 시간 (날짜별 입력)</h4>
                 <button class="btn btn-light text-primary fw-bold" onclick="saveSchedule()">저장하기</button>
             </div>
-            <div class="card-body">
-                <p class="text-muted small">
-                    * 드래그하여 가능한 시간을 선택하세요. (녹색 = 가능)<br>
-                    * 매주 반복되는 시간을 입력해주세요. (09:00 ~ 24:00, 30분 단위)<br>
-                    * 팀 합주가 확정되면 그 시간은 자동으로 불가능 처리됩니다.
-                </p>
-
-                <div class="table-responsive">
-                    <table class="table table-bordered text-center table-sm" id="scheduleTable" style="font-size: 0.8rem;">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 80px;">Time</th>
-                                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gridBody">
-                            </tbody>
-                    </table>
+            
+            <div class="card-body p-0">
+                <div id="weekCarousel" class="carousel slide" data-bs-interval="false">
+                    <div class="carousel-inner">
+                        
+                        {% for week in weeks %}
+                        <div class="carousel-item {% if loop.first %}active{% endif %}">
+                            <div class="p-3 bg-light border-bottom text-center">
+                                <h5 class="fw-bold mb-0">{{ loop.index }}주차 ({{ week[0].display }} ~ {{ week[-1].display }})</h5>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-bordered text-center table-sm mb-0 unselectable" style="font-size: 0.8rem;">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 60px;">Time</th>
+                                            {% for day in week %}
+                                                <th class="{{ 'text-muted bg-secondary bg-opacity-10' if day.is_past else '' }}">
+                                                    {{ day.display }}
+                                                </th>
+                                            {% endfor %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for i in range(30) %}
+                                        <tr>
+                                            <td class="bg-light fw-bold align-middle">
+                                                {{ 9 + (i // 2) }}:{{ '00' if i % 2 == 0 else '30' }}
+                                            </td>
+                                            
+                                            {% for day in week %}
+                                                {% if day.is_past %}
+                                                    <td class="bg-secondary bg-opacity-10"></td>
+                                                {% else %}
+                                                    <td class="time-cell" 
+                                                        data-date="{{ day.date }}" 
+                                                        data-index="{{ i }}"
+                                                        style="cursor: pointer;">
+                                                    </td>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                    </div>
+                    
+                    <button class="carousel-control-prev" type="button" data-bs-target="#weekCarousel" data-bs-slide="prev" style="width: 5%;">
+                        <span class="carousel-control-prev-icon bg-dark rounded-circle p-3" aria-hidden="true"></span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#weekCarousel" data-bs-slide="next" style="width: 5%;">
+                        <span class="carousel-control-next-icon bg-dark rounded-circle p-3" aria-hidden="true"></span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -36,78 +75,62 @@
     <input type="hidden" name="schedule_data" id="scheduleDataInput">
 </form>
 
+<style>
+    .unselectable { user-select: none; }
+    /* 선택된 셀 스타일 (초록색) */
+    .bg-success { background-color: #198754 !important; }
+</style>
+
 <script>
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    // 09:00 ~ 24:00 (15시간 * 2 = 30칸)
-    const startHour = 9;
-    const totalSlots = 30; 
-    
-    // DB에서 불러온 내 스케줄 (없으면 빈 객체)
+    // 내 스케줄 데이터 (YYYY-MM-DD 키)
     let myData = {{ my_schedule | tojson }};
     
-    // 초기화: 데이터 없으면 0으로 채움
-    days.forEach(d => {
-        if (!myData[d]) myData[d] = Array(totalSlots).fill(0);
+    // 초기 렌더링 (저장된 데이터 표시)
+    document.querySelectorAll('.time-cell').forEach(cell => {
+        let date = cell.dataset.date;
+        let idx = cell.dataset.index;
+        
+        if (myData[date] && myData[date][idx] === 1) {
+            cell.classList.add('bg-success');
+        }
     });
 
-    const tbody = document.getElementById('gridBody');
+    // 드래그 로직
     let isMouseDown = false;
     let toggleMode = 1; // 1: 칠하기, 0: 지우기
 
-    // 그리드 생성
-    for (let i = 0; i < totalSlots; i++) {
-        let tr = document.createElement('tr');
-        
-        // 시간 라벨 (1시간 단위로만 표시)
-        let th = document.createElement('td');
-        let hour = startHour + Math.floor(i / 2);
-        let min = (i % 2 === 0) ? '00' : '30';
-        th.innerText = `${hour}:${min}`;
-        th.className = 'bg-light fw-bold align-middle';
-        tr.appendChild(th);
-
-        // 요일별 셀 생성
-        days.forEach(day => {
-            let td = document.createElement('td');
-            td.dataset.day = day;
-            td.dataset.index = i;
-            td.style.cursor = 'pointer';
-            td.style.height = '30px';
+    document.querySelectorAll('.time-cell').forEach(cell => {
+        cell.addEventListener('mousedown', function() {
+            isMouseDown = true;
+            let date = this.dataset.date;
+            let idx = this.dataset.index;
             
-            // 저장된 데이터 반영
-            if (myData[day][i] === 1) {
-                td.classList.add('bg-success');
-            }
-
-            // 마우스 이벤트 (드래그)
-            td.addEventListener('mousedown', function() {
-                isMouseDown = true;
-                // 현재 상태의 반대로 토글 모드 설정
-                toggleMode = myData[day][i] === 1 ? 0 : 1;
-                updateCell(this);
-            });
-            td.addEventListener('mouseover', function() {
-                if (isMouseDown) updateCell(this);
-            });
-            td.addEventListener('mouseup', () => isMouseDown = false);
+            // 데이터 초기화
+            if (!myData[date]) myData[date] = Array(30).fill(0);
             
-            tr.appendChild(td);
+            // 현재 상태의 반대로 토글
+            toggleMode = myData[date][idx] === 1 ? 0 : 1;
+            updateCell(this);
         });
-        tbody.appendChild(tr);
-    }
-
-    // 문서 전체에서 마우스 떼면 드래그 종료
+        
+        cell.addEventListener('mouseover', function() {
+            if (isMouseDown) updateCell(this);
+        });
+    });
+    
     document.addEventListener('mouseup', () => isMouseDown = false);
 
     function updateCell(cell) {
-        let day = cell.dataset.day;
+        let date = cell.dataset.date;
         let idx = cell.dataset.index;
         
+        if (!myData[date]) myData[date] = Array(30).fill(0);
+        
         if (toggleMode === 1) {
-            myData[day][idx] = 1;
+            myData[date][idx] = 1;
             cell.classList.add('bg-success');
         } else {
-            myData[day][idx] = 0;
+            myData[date][idx] = 0;
             cell.classList.remove('bg-success');
         }
     }

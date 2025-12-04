@@ -8,15 +8,12 @@ import json
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'moyeo-rock-secret-key'
 
-# --- [데이터베이스 설정 (Render / Local 자동 구분)] ---
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
-    # Render 서버 환경 (PostgreSQL)
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    # 내 컴퓨터 환경 (SQLite)
     basedir = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 
@@ -25,7 +22,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- [데이터베이스 모델] ---
+# --- [DB 모델] ---
 team_members = db.Table('team_members',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
     db.Column('team_id', db.Integer, db.ForeignKey('team.id'))
@@ -39,7 +36,7 @@ class User(UserMixin, db.Model):
     cohort = db.Column(db.Float, nullable=True)
     session = db.Column(db.String(50), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    schedule_json = db.Column(db.Text, nullable=True) # 날짜별 데이터 저장
+    schedule_json = db.Column(db.Text, nullable=True)
     teams = db.relationship('Team', secondary=team_members, backref='members')
 
 class Team(db.Model):
@@ -51,7 +48,7 @@ class Team(db.Model):
 class ConfirmedSchedule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
-    target_date = db.Column(db.String(20), nullable=False) # YYYY-MM-DD
+    target_date = db.Column(db.String(20), nullable=False)
     time_index = db.Column(db.Integer, nullable=False)
 
 class Notice(db.Model):
@@ -84,7 +81,6 @@ class InstrumentReservation(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- [헬퍼 함수] ---
 def init_instruments():
     try:
         if Instrument.query.count() == 0:
@@ -103,14 +99,13 @@ def init_instruments():
             for item in base:
                 db.session.add(Instrument(code=item['code'], name=item['name'], is_available=item['is_available']))
             db.session.commit()
-            print("🎸 초기 악기 데이터 생성 완료!")
     except: pass
 
 def get_calendar_weeks():
     today = datetime.now().date()
     start_of_week = today - timedelta(days=today.weekday())
     weeks = []
-    for w in range(5): # 5주치 생성
+    for w in range(5):
         week_days = []
         for d in range(7):
             current_day = start_of_week + timedelta(weeks=w, days=d)
@@ -185,7 +180,6 @@ def schedule():
 @login_required
 def myschedule():
     if request.method == 'POST':
-        # 날짜별 데이터 병합 저장
         new_data = json.loads(request.form.get('schedule_data'))
         current_data = json.loads(current_user.schedule_json) if current_user.schedule_json else {}
         current_data.update(new_data)
@@ -231,7 +225,7 @@ def team_detail(team_id):
             if u and u not in team.members: team.members.append(u); db.session.commit(); flash("초대 완료")
             return redirect(url_for('team_detail', team_id=team_id))
         elif action == 'batch_confirm':
-            slots = json.loads(request.form.get('selected_slots')) # ["2024-12-05_10", ...]
+            slots = json.loads(request.form.get('selected_slots'))
             count = 0
             for slot in slots:
                 date_str, idx = slot.split('_'); idx = int(idx)
@@ -246,7 +240,6 @@ def team_detail(team_id):
         elif action == 'delete_team':
             if team.leader_id==current_user.id: db.session.delete(team); db.session.commit(); return redirect(url_for('team_dashboard'))
 
-    # 날짜별 데이터 집계
     weeks = get_calendar_weeks()
     overlap_data = {}
     all_dates = [d['date'] for w in weeks for d in w]
@@ -295,7 +288,6 @@ def session_page(type):
             return redirect(url_for('session_page', type=type))
 
     leader_info = None
-    # [파트장 정보 업데이트]
     if session_type == 'vocal': leader_info = {'name': '김서연', 'intro': '보컬 파트장', 'insta': 'https://www.instagram.com/florescence_328'}
     elif session_type == 'guitar': leader_info = {'name': '배은성', 'intro': '기타 파트장', 'insta': 'https://www.instagram.com/shawn_t.s_/'}
     elif session_type == 'bass': leader_info = {'name': '김하은', 'intro': '베이스 파트장', 'insta': 'https://www.instagram.com/ovwewo/'}
@@ -323,7 +315,6 @@ def session_page(type):
 
     return render_template('instruments.html', type=type.upper(), leader=leader_info, session_type=session_type, events_data=events_data, inst_status=instruments_status)
 
-# [비상용 초기화 주소]
 @app.route('/sys_init')
 def sys_init():
     # 1. 기존 데이터베이스 삭제 (가장 중요!)

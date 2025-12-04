@@ -4,10 +4,10 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h2 class="fw-bold mb-0">🎸 {{ team.name }}</h2>
-        <span class="text-muted">멤버 {{ total_members }}명 / 날짜별 합주 조율</span>
+        <span class="text-muted">멤버 {{ total_members }}명의 시간표를 조율합니다.</span>
     </div>
     {% if team.leader_id == current_user.id %}
-    <form method="POST" onsubmit="return confirm('삭제하시겠습니까?');">
+    <form method="POST" onsubmit="return confirm('정말 팀을 삭제하시겠습니까?');">
         <input type="hidden" name="action" value="delete_team">
         <button class="btn btn-outline-danger btn-sm">팀 삭제</button>
     </form>
@@ -21,7 +21,7 @@
             <div class="card-body p-2 d-flex justify-content-between align-items-center">
                 <span class="small text-muted">
                     💡 드래그하여 <b class="text-danger">빨간색</b> 선택 후 <b>[확정하기]</b> 클릭.<br>
-                    (오늘 이전 날짜는 표시되지 않습니다.)
+                    (빨간 테두리는 이미 확정된 시간입니다)
                 </span>
                 
                 <form id="batchConfirmForm" method="POST">
@@ -73,6 +73,7 @@
                                                 data-slot="{{ slot_key }}"
                                                 data-confirmed="{{ 'true' if is_confirmed else 'false' }}"
                                                 style="cursor: pointer; background-color: rgba(25, 135, 84, {{ count / total_members if total_members > 0 else 0 }}); color: {{ 'white' if count > total_members/2 else 'black' }};">
+                                                
                                                 {% if is_confirmed %}★{% else %}{{ count }}{% endif %}
                                             </td>
                                         {% endif %}
@@ -99,16 +100,26 @@
         <div class="card shadow-sm mb-3">
             <div class="card-header bg-dark text-white fw-bold">멤버 초대</div>
             <div class="card-body">
-                <button class="btn btn-secondary w-100" data-bs-toggle="modal" data-bs-target="#searchModal">🔍 멤버 검색</button>
+                <button class="btn btn-secondary w-100" data-bs-toggle="modal" data-bs-target="#searchModal">
+                    🔍 멤버 검색
+                </button>
             </div>
         </div>
+
         <div class="card shadow-sm">
             <div class="card-header fw-bold">팀원 목록</div>
             <ul class="list-group list-group-flush small">
                 {% for member in team.members %}
                 <li class="list-group-item d-flex justify-content-between">
-                    <span>{{ member.name }} {% if member.id == team.leader_id %}👑{% endif %}</span>
-                    {% if member.schedule_json %}<span class="badge bg-success">입력함</span>{% else %}<span class="badge bg-secondary">미입력</span>{% endif %}
+                    <span>
+                        {{ member.name }} 
+                        {% if member.id == team.leader_id %}👑{% endif %}
+                    </span>
+                    {% if member.schedule_json %}
+                        <span class="badge bg-success">입력함</span>
+                    {% else %}
+                        <span class="badge bg-secondary">미입력</span>
+                    {% endif %}
                 </li>
                 {% endfor %}
             </ul>
@@ -116,9 +127,31 @@
     </div>
 </div>
 
-<div class="modal fade" id="searchModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">멤버 검색</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="input-group mb-3"><input type="text" id="searchInput" class="form-control" placeholder="이름 입력" onkeyup="if(event.keyCode==13) searchUser()"><button class="btn btn-primary" onclick="searchUser()">검색</button></div><div id="searchResultArea" class="list-group"></div></div></div></div></div>
+<div class="modal fade" id="searchModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">멤버 검색</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" id="searchInput" class="form-control" placeholder="이름 입력 (예: 조도형)" onkeyup="if(event.keyCode==13) searchUser()">
+                    <button class="btn btn-primary" onclick="searchUser()">검색</button>
+                </div>
+                <div id="searchResultArea" class="list-group">
+                    <p class="text-center text-muted mt-3">검색 결과가 여기에 표시됩니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-<form id="cancelForm" method="POST" style="display:none;"><input type="hidden" name="action" value="delete_confirm"><input type="hidden" name="date" id="cancelDate"><input type="hidden" name="time_index" id="cancelIdx"></form>
+<form id="cancelForm" method="POST" style="display:none;">
+    <input type="hidden" name="action" value="delete_confirm">
+    <input type="hidden" name="date" id="cancelDate">
+    <input type="hidden" name="time_index" id="cancelIdx">
+</form>
 
 <style>
     .unselectable { user-select: none; }
@@ -127,12 +160,12 @@
 </style>
 
 <script>
-    // 1. 유저 검색 (기존 동일)
+    // 1. 유저 검색
     function searchUser() {
         let q = document.getElementById('searchInput').value;
         if(!q) return;
         fetch(`/api/search_user?query=${q}`).then(r=>r.json()).then(d=>{
-            let a=document.getElementById('searchResultArea'); a.innerHTML='';
+            let a = document.getElementById('searchResultArea'); a.innerHTML='';
             if(d.length===0){a.innerHTML='<p class="text-center text-muted">결과 없음</p>'; return;}
             d.forEach(u=>{
                 let f=document.createElement('form'); f.method='POST'; f.className='mb-1';
@@ -142,7 +175,7 @@
         });
     }
 
-    // 2. 드래그 (날짜 기반으로 수정됨)
+    // 2. 드래그 (날짜 기반)
     let isMouseDown = false;
     let selectedSet = new Set();
     const cells = document.querySelectorAll('.time-cell');
