@@ -307,11 +307,11 @@ def session_page(type):
             return redirect(url_for('session_page', type=type))
 
     leader_info = None
-    if session_type == 'vocal': leader_info = {'name': '김보컬', 'intro': '보컬 파트장', 'insta': 'https://www.instagram.com/skku_hwayotteurak'}
-    elif session_type == 'guitar': leader_info = {'name': '이기타', 'intro': '기타 파트장', 'insta': 'https://www.instagram.com/skku_hwayotteurak'}
-    elif session_type == 'bass': leader_info = {'name': '박베이스', 'intro': '베이스 파트장', 'insta': 'https://www.instagram.com/skku_hwayotteurak'}
-    elif session_type == 'keyboard': leader_info = {'name': '최키보드', 'intro': '키보드 파트장', 'insta': 'https://www.instagram.com/skku_hwayotteurak'}
-    elif session_type == 'drum': leader_info = {'name': '정드럼', 'intro': '드럼 파트장', 'insta': 'https://www.instagram.com/skku_hwayotteurak'}
+    if session_type == 'vocal': leader_info = {'name': '김서연', 'intro': '보컬 파트장', 'insta': 'https://www.instagram.com/florescence_328'}
+    elif session_type == 'guitar': leader_info = {'name': '배은성', 'intro': '기타 파트장', 'insta': 'https://www.instagram.com/shawn_t.s_/'}
+    elif session_type == 'bass': leader_info = {'name': '김하은', 'intro': '베이스 파트장', 'insta': 'https://www.instagram.com/ovwewo/'}
+    elif session_type == 'keyboard': leader_info = {'name': '김민현', 'intro': '키보드 파트장', 'insta': 'https://www.instagram.com/galsgus/'}
+    elif session_type == 'drum': leader_info = {'name': '추서현', 'intro': '드럼 파트장', 'insta': 'https://www.instagram.com/seohyun_choo/'}
 
     events_data = []; instruments_status = {}
     target_items = []
