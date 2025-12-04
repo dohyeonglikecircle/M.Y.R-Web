@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
+<style>
+    .bg-purple { background-color: #6f42c1 !important; color: white !important; }
+    .border-purple { border-color: #6f42c1 !important; }
+    .text-purple { color: #6f42c1 !important; }
+</style>
+
+<div class="row">
+    <div class="col-md-9">
+        
+        <div class="p-4 mb-4 bg-light rounded-3 border">
+            <h1 class="display-6 fw-bold">
+                {% if session_type == 'vocal' %}🎤{% elif session_type == 'guitar' %}🎸{% elif session_type == 'bass' %}🎸{% elif session_type == 'drum' %}🥁{% elif session_type == 'keyboard' %}🎹{% endif %}
+                {{ type }} 세션
+            </h1>
+            <p class="lead text-muted mb-0">
+                {% if session_type in ['keyboard', 'drum'] %}
+                    동방 악기 사용 예약 (공연 기간 한정)
+                {% else %}
+                    {{ type }} 멤버 공간
+                {% endif %}
+            </p>
+        </div>
+
+        {% macro inst_card(code, color_class) %}
+            {% set inst = inst_status[code] %}
+            <div class="col"><div class="card h-100 border-{{ color_class }}"><div class="card-header bg-{{ color_class }} text-white d-flex justify-content-between align-items-center"><small class="fw-bold">{{ inst.name }}</small>{% if inst.is_available %} <span class="badge bg-light text-dark">대여 가능</span> {% else %} <span class="badge bg-dark">대여 불가</span> {% endif %}</div><div class="position-relative bg-white text-center"><img src="{{ url_for('static', filename='images/' + code + '.jpg') }}" class="card-img-top p-2" style="height: 250px; object-fit: contain;" alt="{{ inst.name }}">{% if not inst.is_available %} <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex align-items-center justify-content-center"><h3 class="text-white fw-bold">⛔ 수리 중 / 불가</h3></div> {% endif %}</div>{% if current_user.is_admin %}<div class="card-footer bg-transparent border-{{ color_class }}"><form method="POST" class="d-grid"><input type="hidden" name="action_type" value="toggle_status"><input type="hidden" name="target_code" value="{{ code }}">{% if inst.is_available %} <button class="btn btn-outline-dark btn-sm">🔒 대여 막기</button> {% else %} <button class="btn btn-outline-success btn-sm">🔓 대여 풀기</button> {% endif %}</form></div>{% endif %}</div></div>
+        {% endmacro %}
+
+        {% if session_type == 'guitar' %}
+            <div class="accordion mb-4 shadow-sm" id="guitarAccordion"><div class="accordion-item"><h2 class="accordion-header" id="headingOne"><button class="accordion-button collapsed fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePhotos">🎸 보유 장비 및 대여 현황 확인</button></h2><div id="collapsePhotos" class="accordion-collapse collapse" data-bs-parent="#guitarAccordion"><div class="accordion-body bg-white"><div class="row row-cols-1 row-cols-md-2 g-3">{{ inst_card('guitar1', 'danger') }} {{ inst_card('guitar2', 'warning') }} {{ inst_card('guitar3', 'success') }} {{ inst_card('geffect', 'primary') }}</div></div></div></div></div>
+            <div class="row"><div class="col-md-8 mb-3"><div class="card shadow-sm h-100"><div class="card-body"><h5 class="card-title fw-bold mb-3">📅 대여 현황 (4일간)</h5><div id='calendar'></div></div></div></div><div class="col-md-4 mb-3"><div class="card shadow-sm border-primary h-100"><div class="card-header bg-primary text-white fw-bold">📝 예약하기</div><div class="card-body"><form method="POST"><input type="hidden" name="action_type" value="reserve"><div class="mb-3"><label class="form-label small fw-bold">장비</label><select class="form-select" name="item_type" required><option value="" disabled selected>선택</option>{% for code in ['guitar1', 'guitar2', 'guitar3', 'geffect'] %}{% set inst = inst_status[code] %}<option value="{{ code }}" {% if not inst.is_available %}disabled{% endif %}>{{ inst.name }} {% if not inst.is_available %}(⛔){% endif %}</option>{% endfor %}</select></div><div class="mb-3"><label class="form-label small fw-bold">시작</label><input type="datetime-local" class="form-control" name="start_date" required></div><div class="mb-3"><label class="form-label small fw-bold">반납</label><input type="datetime-local" class="form-control" name="end_date" required></div><div class="d-grid"><button type="submit" class="btn btn-primary">예약</button></div></form></div></div></div></div>
+
+        {% elif session_type == 'bass' %}
+            <div class="accordion mb-4 shadow-sm" id="bassAccordion"><div class="accordion-item"><h2 class="accordion-header" id="headingBass"><button class="accordion-button collapsed fw-bold text-purple" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBassPhotos">🎸 베이스 장비 확인</button></h2><div id="collapseBassPhotos" class="accordion-collapse collapse" data-bs-parent="#bassAccordion"><div class="accordion-body bg-white"><div class="row row-cols-1 row-cols-md-2 g-3">{{ inst_card('bass1', 'success') }} {{ inst_card('bass2', 'primary') }} {{ inst_card('bass3', 'purple') }} {{ inst_card('beffect', 'warning') }}</div></div></div></div></div>
+            <div class="row"><div class="col-md-8 mb-3"><div class="card shadow-sm h-100"><div class="card-body"><h5 class="card-title fw-bold mb-3">📅 대여 현황 (4일간)</h5><div id='calendar'></div></div></div></div><div class="col-md-4 mb-3"><div class="card shadow-sm border-purple h-100"><div class="card-header bg-purple text-white fw-bold">📝 예약하기</div><div class="card-body"><form method="POST"><input type="hidden" name="action_type" value="reserve"><div class="mb-3"><label class="form-label small fw-bold">장비</label><select class="form-select" name="item_type" required><option value="" disabled selected>선택</option>{% for code in ['bass1', 'bass2', 'bass3', 'beffect'] %}{% set inst = inst_status[code] %}<option value="{{ code }}" {% if not inst.is_available %}disabled{% endif %}>{{ inst.name }} {% if not inst.is_available %}(⛔){% endif %}</option>{% endfor %}</select></div><div class="mb-3"><label class="form-label small fw-bold">시작</label><input type="datetime-local" class="form-control" name="start_date" required></div><div class="mb-3"><label class="form-label small fw-bold">반납</label><input type="datetime-local" class="form-control" name="end_date" required></div><div class="d-grid"><button type="submit" class="btn bg-purple text-white">예약</button></div></form></div></div></div></div>
+
+        {% elif session_type in ['keyboard', 'drum'] %}
+            {% set theme = 'warning' if session_type == 'keyboard' else 'danger' %}
+            {% set theme_text = 'text-dark' if session_type == 'keyboard' else 'text-white' %}
+            {% set inst = inst_status[session_type] %}
+
+            {% if not inst.is_available %}
+                <div class="card text-center py-5 border-{{ theme }} shadow-sm">
+                    <div class="card-body">
+                        <h1 class="display-1">⛔</h1>
+                        <h2 class="fw-bold mt-3">현재 예약 시스템이 닫혀있습니다.</h2>
+                        <p class="text-muted">공연 기간에만 활성화되는 기능입니다.<br>문의사항은 파트장에게 연락주세요.</p>
+                        
+                        {% if current_user.is_admin %}
+                        <div class="mt-4">
+                            <form method="POST">
+                                <input type="hidden" name="action_type" value="toggle_status">
+                                <input type="hidden" name="target_code" value="{{ session_type }}">
+                                <button class="btn btn-outline-success btn-lg">🔓 관리자 권한으로 시스템 켜기</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+            {% else %}
+                
+                {% if current_user.is_admin %}
+                <div class="alert alert-success d-flex justify-content-between align-items-center">
+                    <span>💡 현재 예약 시스템이 <b>가동 중</b>입니다.</span>
+                    <form method="POST">
+                        <input type="hidden" name="action_type" value="toggle_status">
+                        <input type="hidden" name="target_code" value="{{ session_type }}">
+                        <button class="btn btn-sm btn-outline-danger">🔒 시스템 끄기 (종료)</button>
+                    </form>
+                </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold mb-3">📅 동방 사용 현황</h5>
+                                <div id='calendar'></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card shadow-sm border-{{ theme }} h-100">
+                            <div class="card-header bg-{{ theme }} {{ theme_text }} fw-bold">
+                                📝 동방 사용 예약
+                            </div>
+                            <div class="card-body">
+                                <form method="POST">
+                                    <input type="hidden" name="action_type" value="reserve">
+                                    <input type="hidden" name="item_type" value="{{ session_type }}">
+                                    
+                                    <div class="mb-3">
+                                        <p class="fw-bold mb-1">{{ inst.name }}</p>
+                                        <span class="badge bg-success">사용 가능</span>
+                                    </div>
+
+                                    <div class="mb-3"><label class="form-label small fw-bold">시작 시간</label><input type="datetime-local" class="form-control" name="start_date" required></div>
+                                    <div class="mb-3"><label class="form-label small fw-bold">종료 시간</label><input type="datetime-local" class="form-control" name="end_date" required></div>
+                                    <div class="d-grid"><button type="submit" class="btn btn-{{ theme }}">예약 신청</button></div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+        {% elif session_type == 'vocal' %}
+            <div class="card shadow-sm text-center py-5 border-0 bg-white"><div class="card-body"><h1 class="text-muted mb-3" style="font-size: 4rem;">🚧</h1><h3 class="text-dark fw-bold">아직 등록된 기능이 없습니다</h3></div></div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-3">
+        {% if leader %}
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-dark text-white fw-bold">⭐ 파트장 소개</div>
+            <div class="card-body">
+                <h5 class="card-title fw-bold">{{ leader.name }}</h5>
+                <p class="card-text text-muted small mb-3">{{ leader.intro }}</p>
+                {% if leader.insta %}<div class="d-grid"><a href="{{ leader.insta }}" target="_blank" class="btn btn-outline-danger btn-sm">Instagram DM</a></div>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+        <div class="list-group shadow-sm"><a href="#" class="list-group-item list-group-item-action active">{{ type }} 공지사항</a></div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        if (calendarEl) {
+            var myEvents = {{ events_data | tojson }};
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridFourDay', locale: 'ko', height: 'auto',
+                views: { timeGridFourDay: { type: 'timeGrid', duration: { days: 4 }, buttonText: '4일 보기' } },
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridFourDay,dayGridMonth' },
+                events: myEvents, eventDisplay: 'block', nowIndicator: true, slotMinTime: '09:00:00', slotMaxTime: '24:00:00', allDaySlot: false, expandRows: true
+            });
+            calendar.render();
+        }
+    });
+</script>
+{% endblock %}

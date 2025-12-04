@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">회원가입</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/register">
+                    
+                    <h5 class="mb-3 text-muted">계정 정보</h5>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">아이디</label>
+                        <input type="text" class="form-control" id="username" name="username" placeholder="사용할 아이디를 입력하세요" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">비밀번호</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+
+                    <hr>
+
+                    <h5 class="mb-3 text-muted">부원 정보</h5>
+                    <div class="mb-3">
+                        <label for="name" class="form-label">이름 (실명)</label>
+                        <input type="text" class="form-control" id="name" name="name" placeholder="예: 홍길동" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="cohort" class="form-label">기수</label>
+                            <select class="form-select" id="cohort" name="cohort">
+                                <option value="" selected disabled>기수 선택</option>
+                                {% for i in range(22*2, 29*2 + 1) %}
+                                    <option value="{{ i/2 }}">{{ i/2 }}기</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="session" class="form-label">세션</label>
+                            <select class="form-select" id="session" name="session">
+                                <option value="" selected disabled>세션 선택</option>
+                                <option value="Vocal">🎤 Vocal (보컬)</option>
+                                <option value="Guitar">🎸 Guitar (기타)</option>
+                                <option value="Bass">🎸 Bass (베이스)</option>
+                                <option value="Keyboard">🎹 Keyboard (키보드)</option>
+                                <option value="Drum">🥁 Drum (드럼)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <p class="text-muted small">* 관리자(admin) 계정은 기수/세션을 선택하지 않아도 됩니다.</p>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg">가입 완료</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

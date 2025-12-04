@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">🕒 내 가능 시간 입력 (Every Week)</h4>
+                <button class="btn btn-light text-primary fw-bold" onclick="saveSchedule()">저장하기</button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    * 드래그하여 가능한 시간을 선택하세요. (녹색 = 가능)<br>
+                    * 매주 반복되는 시간을 입력해주세요. (09:00 ~ 24:00, 30분 단위)<br>
+                    * 팀 합주가 확정되면 그 시간은 자동으로 불가능 처리됩니다.
+                </p>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered text-center table-sm" id="scheduleTable" style="font-size: 0.8rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 80px;">Time</th>
+                                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gridBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="saveForm" method="POST" style="display:none;">
+    <input type="hidden" name="schedule_data" id="scheduleDataInput">
+</form>
+
+<script>
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // 09:00 ~ 24:00 (15시간 * 2 = 30칸)
+    const startHour = 9;
+    const totalSlots = 30; 
+    
+    // DB에서 불러온 내 스케줄 (없으면 빈 객체)
+    let myData = {{ my_schedule | tojson }};
+    
+    // 초기화: 데이터 없으면 0으로 채움
+    days.forEach(d => {
+        if (!myData[d]) myData[d] = Array(totalSlots).fill(0);
+    });
+
+    const tbody = document.getElementById('gridBody');
+    let isMouseDown = false;
+    let toggleMode = 1; // 1: 칠하기, 0: 지우기
+
+    // 그리드 생성
+    for (let i = 0; i < totalSlots; i++) {
+        let tr = document.createElement('tr');
+        
+        // 시간 라벨 (1시간 단위로만 표시)
+        let th = document.createElement('td');
+        let hour = startHour + Math.floor(i / 2);
+        let min = (i % 2 === 0) ? '00' : '30';
+        th.innerText = `${hour}:${min}`;
+        th.className = 'bg-light fw-bold align-middle';
+        tr.appendChild(th);
+
+        // 요일별 셀 생성
+        days.forEach(day => {
+            let td = document.createElement('td');
+            td.dataset.day = day;
+            td.dataset.index = i;
+            td.style.cursor = 'pointer';
+            td.style.height = '30px';
+            
+            // 저장된 데이터 반영
+            if (myData[day][i] === 1) {
+                td.classList.add('bg-success');
+            }
+
+            // 마우스 이벤트 (드래그)
+            td.addEventListener('mousedown', function() {
+                isMouseDown = true;
+                // 현재 상태의 반대로 토글 모드 설정
+                toggleMode = myData[day][i] === 1 ? 0 : 1;
+                updateCell(this);
+            });
+            td.addEventListener('mouseover', function() {
+                if (isMouseDown) updateCell(this);
+            });
+            td.addEventListener('mouseup', () => isMouseDown = false);
+            
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    }
+
+    // 문서 전체에서 마우스 떼면 드래그 종료
+    document.addEventListener('mouseup', () => isMouseDown = false);
+
+    function updateCell(cell) {
+        let day = cell.dataset.day;
+        let idx = cell.dataset.index;
+        
+        if (toggleMode === 1) {
+            myData[day][idx] = 1;
+            cell.classList.add('bg-success');
+        } else {
+            myData[day][idx] = 0;
+            cell.classList.remove('bg-success');
+        }
+    }
+
+    function saveSchedule() {
+        document.getElementById('scheduleDataInput').value = JSON.stringify(myData);
+        document.getElementById('saveForm').submit();
+    }
+</script>
+{% endblock %}

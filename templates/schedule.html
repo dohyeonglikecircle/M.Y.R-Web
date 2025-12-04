@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
+
+<div class="row">
+    <div class="col-md-9 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <div id='calendar'></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        {% if current_user.is_authenticated and current_user.is_admin %}
+        <div class="card bg-light shadow-sm mb-3">
+            <div class="card-header fw-bold bg-white">
+                ➕ 일정 추가 (관리자)
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">일정 이름</label>
+                        <input type="text" class="form-control" name="title" placeholder="예: 겨울방학 합주" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">시작 날짜</label>
+                        <input type="date" class="form-control" name="start_date" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">종료 날짜</label>
+                        <input type="date" class="form-control" name="end_date">
+                        <div class="form-text text-muted" style="font-size: 0.75rem;">
+                            하루 일정이라면 비워두거나<br>시작일과 똑같이 설정하세요.
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">추가하기</button>
+                </form>
+            </div>
+        </div>
+        <div class="alert alert-info small border-0">
+            💡 <b>팁:</b><br>
+            제목에 '공연'이 들어가면 <span class="text-danger fw-bold">빨간색</span>,<br>
+            그 외에는 <span class="text-primary fw-bold">파란색</span>으로 표시됩니다.
+        </div>
+        {% else %}
+        <div class="card bg-light border-0">
+            <div class="card-body text-center text-muted">
+                <p class="mb-0">성균관대 모여락<br>공식 일정표입니다.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        
+        // Flask(app.py)에서 넘겨준 데이터를 자바스크립트로 가져옴
+        // | tojson 필터가 없으면 에러가 납니다!
+        var myEvents = {{ events_data | tojson }};
+
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth', // 월별 보기
+            locale: 'ko',               // 한국어 설정
+            height: 'auto',             // 높이 자동 맞춤
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,listMonth'
+            },
+            events: myEvents,           // 데이터 주입
+            eventDisplay: 'block',      // 일정을 색깔 띠 형태로 표시
+            dayMaxEvents: true          // 일정이 너무 많으면 '+more'로 표시
+        });
+
+        calendar.render();
+    });
+</script>
+
+<style>
+    /* 캘린더 커스텀 스타일 */
+    /* 일정 블록의 글씨 스타일 */
+    .fc-event { 
+        cursor: pointer; 
+        text-decoration: none; 
+        font-size: 0.9rem;
+    }
+    .fc-event-title { font-weight: 500; }
+    
+    /* 토요일 날짜 파란색 */
+    .fc-day-sat a { color: #0d6efd; text-decoration: none; }
+    /* 일요일 날짜 빨간색 */
+    .fc-day-sun a { color: #dc3545; text-decoration: none; }
+    
+    /* 오늘 날짜 배경 강조 */
+    .fc-day-today { background-color: #f8f9fa !important; }
+</style>
+{% endblock %}

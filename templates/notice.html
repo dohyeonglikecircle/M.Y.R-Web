@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4 border-bottom pb-2">📢 공지사항</h2>
+        
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col" style="width: 10%">#</th>
+                    <th scope="col" style="width: 60%">제목</th>
+                    <th scope="col" style="width: 30%">작성일</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for notice in notices %}
+                <tr>
+                    <th scope="row">{{ loop.index }}</th>
+                    <td>{{ notice.title }}</td>
+                    <td>{{ notice.date_posted.strftime('%Y-%m-%d') }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="text-center">등록된 공지사항이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if current_user.is_authenticated and current_user.is_admin %}
+            <div class="text-end">
+                <a href="/notice/new" class="btn btn-dark">글쓰기</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
